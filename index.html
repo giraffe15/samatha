@@ -129,8 +129,11 @@ function App(){
 
   const iRef=useRef(null),audioRef=useRef(null),wlRef=useRef(null);
   const tsRef=useRef(null),pausedRef=useRef(0),bellsRef=useRef(new Set()),runRef=useRef(false);
+  const elapsedRef=useRef(0),presetRef=useRef(30);
 
   useEffect(()=>{runRef.current=running;},[running]);
+  useEffect(()=>{elapsedRef.current=elapsed;},[elapsed]);
+  useEffect(()=>{presetRef.current=preset;},[preset]);
 
   const save=(arr)=>{setSessions(arr);localStorage.setItem("samatha_sessions",JSON.stringify(arr));};
   const getAudio=()=>{if(!audioRef.current)audioRef.current=new(window.AudioContext||window.webkitAudioContext)();return audioRef.current;};
@@ -146,7 +149,11 @@ function App(){
     const fired=bellsRef.current,ph=getPhase(e,bufSec,mainSec);
     if(ph==="main"&&!fired.has("main")){fired.add("main");playBell(audioRef.current||getAudio(),1);}
     else if(ph==="cooldown"&&!fired.has("cooldown")){fired.add("cooldown");playEndBell(audioRef.current||getAudio());}
-    if(e>=totalSec){setRunning(false);setFinished(true);setDimmed(false);clearInterval(iRef.current);iRef.current=null;releaseWL();}
+    if(e>=totalSec){
+      setRunning(false);setFinished(true);setDimmed(false);
+      clearInterval(iRef.current);iRef.current=null;
+      releaseWL(); // 完了後はスマホの自動消灯設定に従う
+    }
   },[bufSec,mainSec,totalSec]);
 
   useEffect(()=>{
@@ -155,11 +162,24 @@ function App(){
     return()=>{clearInterval(iRef.current);iRef.current=null;};
   },[running,tick]);
 
+  // バックグラウンド検知
   useEffect(()=>{
-    const h=async()=>{if(!document.hidden&&runRef.current)await acquireWL();};
-    document.addEventListener("visibilitychange",h);
-    return()=>document.removeEventListener("visibilitychange",h);
-  },[]);
+    const handler=async()=>{
+      if(document.hidden&&runRef.current){
+        setRunning(false);setDimmed(false);releaseWL();
+        const mainElapsed=Math.max(0,elapsedRef.current-bufSec);
+        pausedRef.current=0;tsRef.current=null;bellsRef.current=new Set();
+        setElapsed(0);setFinished(false);
+        if(mainElapsed>=MIN_RECORD_SEC){
+          setPendingSession({duration:mainElapsed,preset:presetRef.current});
+        }
+      } else if(!document.hidden&&runRef.current){
+        await acquireWL();
+      }
+    };
+    document.addEventListener("visibilitychange",handler);
+    return()=>document.removeEventListener("visibilitychange",handler);
+  },[bufSec]);
 
   const handleStart=async()=>{
     try{getAudio().resume();}catch{}
@@ -215,6 +235,7 @@ function App(){
   return(
     <div style={{minHeight:"100vh",background:"#09090f",color:"#e8e4dc",fontFamily:"'Cormorant Garamond',Georgia,serif",display:"flex",flexDirection:"column",alignItems:"center"}}>
 
+      {/* DIM */}
       {dimmed&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:100,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:24}}>
           <div style={{fontFamily:"'Cormorant SC',serif",fontSize:12,letterSpacing:4,color:phaseColor,opacity:.7}}>{PHASE_LABELS[phase]}</div>
@@ -236,6 +257,7 @@ function App(){
         </div>
       )}
 
+      {/* HEADER */}
       <div style={{width:"100%",maxWidth:480,padding:"28px 24px 0"}}>
         <div style={{textAlign:"center",marginBottom:4}}>
           <div style={{fontFamily:"'Cormorant SC',serif",fontSize:11,letterSpacing:6,color:"#5a4a3a",marginBottom:6}}>SAMATHA</div>
