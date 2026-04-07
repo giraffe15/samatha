@@ -10,16 +10,16 @@
 <title>Samatha 瞑想タイマー</title>
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=Noto+Sans+JP:wght@300;400&subset=latin,japanese&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#09090f;color:#e8e4dc;font-family:'Inter',sans-serif;-webkit-tap-highlight-color:transparent}
+body{background:#09090f;color:#e8e4dc;font-family:'Inter','Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent}
 ::-webkit-scrollbar{width:4px;background:#111}::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
-.tab{background:none;border:none;color:#887a6a;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;letter-spacing:3px;padding:8px 20px;transition:color .3s}
+.tab{background:none;border:none;color:#887a6a;cursor:pointer;font-family:'Inter','Noto Sans JP',sans-serif;font-size:13px;letter-spacing:3px;padding:8px 20px;transition:color .3s}
 .tab.active{color:#d4b896;border-bottom:1px solid #d4b896}
-.pb{background:none;border:1px solid #2a2520;color:#6b5f52;border-radius:4px;padding:6px 12px;cursor:pointer;font-family:'Inter',sans-serif;font-size:15px;transition:all .2s}
+.pb{background:none;border:1px solid #2a2520;color:#6b5f52;border-radius:4px;padding:6px 12px;cursor:pointer;font-family:'Inter','Noto Sans JP',sans-serif;font-size:15px;transition:all .2s}
 .pb.on{border-color:#c9a87a;color:#d4b896;background:#1a1510}
-.ab{border:none;border-radius:50px;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:3px;font-size:13px;padding:13px 36px;transition:all .3s}
+.ab{border:none;border-radius:50px;cursor:pointer;font-family:'Inter','Noto Sans JP',sans-serif;letter-spacing:3px;font-size:13px;padding:13px 36px;transition:all .3s}
 .s{background:#c9a87a;color:#09090f}
 .x{background:transparent;border:1px solid #3a2520;color:#7a5040}
 .sv{background:#4a7a5a;color:#e8e4dc}
@@ -238,7 +238,7 @@ function App(){
   const last14Avg=Math.round(last14.reduce((a,d)=>a+(byDate[d]||0),0)/60/14);
 
   return html`
-    <div style=${{minHeight:"100vh",background:"#09090f",color:"#e8e4dc",fontFamily:"'Inter',sans-serif",display:"flex",flexDirection:"column",alignItems:"center"}}>
+    <div style=${{minHeight:"100vh",background:"#09090f",color:"#e8e4dc",fontFamily:"'Inter','Noto Sans JP',sans-serif",display:"flex",flexDirection:"column",alignItems:"center"}}>
 
       ${dimmed&&html`
         <div style=${{position:"fixed",inset:0,background:"#09090f",zIndex:100,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:24}}>
