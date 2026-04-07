@@ -7,12 +7,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Samatha">
 <meta name="theme-color" content="#09090f">
-<title>Samatha 瞑想タイマー</title>
+<title>Samatha</title>
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=Noto+Sans+JP:wght@300;400&subset=latin,japanese&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none}
 body{background:#09090f;color:#e8e4dc;font-family:'Inter','Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent}
 ::-webkit-scrollbar{width:4px;background:#111}::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
 .tab{background:none;border:none;color:#887a6a;cursor:pointer;font-family:'Inter','Noto Sans JP',sans-serif;font-size:13px;letter-spacing:3px;padding:8px 20px;transition:color .3s}
@@ -92,7 +92,7 @@ function DustMountain({totalMinutes,totalAll}){
       <div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:16}}>
         <div style=${{fontSize:11,letterSpacing:2,color:shimmer?"#c9a87a":"#4a3a2a",transition:"color 1s"}}>チリツモ山</div>
         <div style=${{fontSize:12,color:"#3a4a5a",letterSpacing:1}}>
-          ${completed>0&&html`<span style=${{color:shimmer?"#e8d4a8":"#7dd3fc",marginRight:8,transition:"color 1s"}}>${completed+1}山目</span>`}
+          ${completed>0&&html`<span style=${{color:shimmer?"#e8d4a8":"#7dd3fc",marginRight:8}}>${completed+1}山目</span>`}
           ${totalGrains.toLocaleString()}粒 · ${Math.floor(totalMinutes/60)>0?`${Math.floor(totalMinutes/60)}時間`:""}${Math.round(totalMinutes%60)}分
         </div>
       </div>
@@ -133,19 +133,56 @@ function App(){
   const [dimmed,setDimmed]=useState(false);
   const [bellTesting,setBellTesting]=useState(false);
   const [pendingSession,setPendingSession]=useState(null);
-  const [dailyGoal,setDailyGoal]=useState(()=>{try{return parseInt(localStorage.getItem("samatha_daily_goal")||"60");}catch{return 60;}});
+  const [dailyGoal,setDailyGoal]=useState(60);
+  const [amGoal,setAmGoal]=useState(30);
+  const [pmGoal,setPmGoal]=useState(30);
 
   const iRef=useRef(null),audioRef=useRef(null),wlRef=useRef(null);
   const tsRef=useRef(null),pausedRef=useRef(0),bellsRef=useRef(new Set()),runRef=useRef(false);
   const elapsedRef=useRef(0),presetRef=useRef(30);
   const sessionDateRef=useRef(todayStr()),sessionStartRef=useRef(null);
+  const lpTimer=useRef(null),lpInterval=useRef(null);
+  const lpTimer2=useRef(null),lpInterval2=useRef(null);
+  const lpTimer3=useRef(null),lpInterval3=useRef(null);
+  const lpTimer4=useRef(null),lpInterval4=useRef(null);
+  const dailyGoalRef=useRef(60);
+
+  const makeLongPress=(fn,t=lpTimer,i=lpInterval)=>({
+    onMouseDown:()=>{fn();t.current=setTimeout(()=>{i.current=setInterval(fn,200);},600);},
+    onMouseUp:()=>{clearTimeout(t.current);clearInterval(i.current);},
+    onMouseLeave:()=>{clearTimeout(t.current);clearInterval(i.current);},
+    onTouchStart:(e)=>{e.preventDefault();fn();t.current=setTimeout(()=>{i.current=setInterval(fn,200);},600);},
+    onTouchEnd:()=>{clearTimeout(t.current);clearInterval(i.current);},
+  });
 
   useEffect(()=>{runRef.current=running;},[running]);
   useEffect(()=>{elapsedRef.current=elapsed;},[elapsed]);
   useEffect(()=>{presetRef.current=preset;},[preset]);
+  useEffect(()=>{dailyGoalRef.current=dailyGoal;},[dailyGoal]);
+
+  useEffect(()=>{
+    try{
+      const g=parseInt(localStorage.getItem("samatha_daily_goal")||"60");
+      setDailyGoal(g);dailyGoalRef.current=g;
+      const hg=localStorage.getItem("samatha_half_goals");
+      if(hg){const{am,pm}=JSON.parse(hg);setAmGoal(am);setPmGoal(pm);}
+      else{setAmGoal(Math.floor(g/2));setPmGoal(Math.ceil(g/2));}
+    }catch{}
+  },[]);
+
+  useEffect(()=>{
+    if(amGoal+pmGoal===dailyGoal){
+      try{localStorage.setItem("samatha_half_goals",JSON.stringify({am:amGoal,pm:pmGoal}));}catch{}
+    }
+  },[amGoal,pmGoal,dailyGoal]);
 
   const save=(arr)=>{setSessions(arr);localStorage.setItem("samatha_sessions",JSON.stringify(arr));};
-  const saveDailyGoal=(v)=>{setDailyGoal(v);localStorage.setItem("samatha_daily_goal",String(v));};
+  const saveDailyGoal=(v)=>{
+    setDailyGoal(v);dailyGoalRef.current=v;
+    localStorage.setItem("samatha_daily_goal",String(v));
+    setAmGoal(Math.floor(v/2));setPmGoal(Math.ceil(v/2));
+    localStorage.setItem("samatha_half_goals",JSON.stringify({am:Math.floor(v/2),pm:Math.ceil(v/2)}));
+  };
   const getAudio=()=>{if(!audioRef.current)audioRef.current=new(window.AudioContext||window.webkitAudioContext)();return audioRef.current;};
   const acquireWL=async()=>{try{if("wakeLock"in navigator)wlRef.current=await navigator.wakeLock.request("screen");}catch{}};
   const releaseWL=()=>{try{wlRef.current?.release();}catch{}wlRef.current=null;};
@@ -226,22 +263,25 @@ function App(){
   const weekTotal=last14.slice(7).reduce((a,d)=>a+(byDate[d]||0),0);
   const totalAll=sessions.reduce((a,s)=>a+s.duration,0);
   const monthTotal=(()=>{const d=new Date();if(d.getHours()<3)d.setDate(d.getDate()-1);const prefix=d.toISOString().slice(0,7);return Object.entries(byDate).filter(([k])=>k.startsWith(prefix)).reduce((a,[,v])=>a+v,0);})();
+  const isAM=(s)=>{const h=new Date(s.startTime||0).getHours();return h>=3&&h<15;};
+  const todaySessions=sessions.filter(s=>s.date===todayStr());
+  const amTotal=todaySessions.filter(s=>s.startTime&&isAM(s)).reduce((a,s)=>a+s.duration,0);
+  const pmTotal=todaySessions.filter(s=>s.startTime&&!isAM(s)).reduce((a,s)=>a+s.duration,0);
   const streak=(()=>{let s=0,d=new Date();if(d.getHours()<3)d.setDate(d.getDate()-1);while(byDate[d.toISOString().slice(0,10)]){s++;d.setDate(d.getDate()-1);}return s;})();
   const bestStreak=(()=>{const dates=Object.keys(byDate).sort();let best=0,cur=0,prev=null;for(const dt of dates){if(prev){const p=new Date(prev);p.setDate(p.getDate()+1);cur=p.toISOString().slice(0,10)===dt?cur+1:1;}else{cur=1;}best=Math.max(best,cur);prev=dt;}return best;})();
+  const last14Avg=Math.round(last14.reduce((a,d)=>a+(byDate[d]||0),0)/60/14);
+  const weekAvg=Math.round(weekTotal/60/7);
+  const monthAvg=(()=>{const d=new Date();if(d.getHours()<3)d.setDate(d.getDate()-1);return Math.round(monthTotal/60/d.getDate());})();
+  const avgAll=(()=>{if(sessions.length===0)return 0;const first=Object.keys(byDate).sort()[0];const d1=new Date(first),d2=new Date(todayStr());const days=Math.max(1,Math.round((d2-d1)/(1000*60*60*24))+1);return Math.round(totalAll/60/days);})();
   const heatColor=m=>m===0?"#1a1814":m<10?"#2d3822":m<20?"#4a6030":m<30?"#7a8f40":"#c9a87a";
   const MONTHS=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
   const heatWeeks=(()=>{const end=new Date(),start=new Date();start.setDate(end.getDate()-364);const ps=new Date(start);ps.setDate(start.getDate()-start.getDay());const weeks=[],cur=new Date(ps);while(cur<=end){const w=[];for(let d=0;d<7;d++){const ds=cur.toISOString().slice(0,10);w.push({date:ds,mins:Math.round((byDate[ds]||0)/60),inRange:cur>=start&&cur<=end});cur.setDate(cur.getDate()+1);}weeks.push(w);}return weeks;})();
 
-  const avgAll=(()=>{if(sessions.length===0)return 0;const first=Object.keys(byDate).sort()[0];const d1=new Date(first),d2=new Date(todayStr());const days=Math.max(1,Math.round((d2-d1)/(1000*60*60*24))+1);return Math.round(totalAll/60/days);})();
-  const weekAvg=Math.round(weekTotal/60/7);
-  const monthAvg=(()=>{const d=new Date();if(d.getHours()<3)d.setDate(d.getDate()-1);return Math.round(monthTotal/60/d.getDate());})();
-  const last14Avg=Math.round(last14.reduce((a,d)=>a+(byDate[d]||0),0)/60/14);
-
   return html`
-    <div style=${{minHeight:"100vh",background:"#09090f",color:"#e8e4dc",fontFamily:"'Inter','Noto Sans JP',sans-serif",display:"flex",flexDirection:"column",alignItems:"center"}}>
+    <div style=${{minHeight:"100vh",background:"#09090f",color:"#e8e4dc",fontFamily:"'Inter','Noto Sans JP',sans-serif",display:"flex",flexDirection:"column",alignItems:"center",WebkitUserSelect:"none",userSelect:"none"}}>
 
       ${dimmed&&html`
-        <div style=${{position:"fixed",inset:0,background:"#09090f",zIndex:100,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:24}}>
+        <div style=${{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#09090f",zIndex:9999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:24}}>
           <div style=${{fontSize:12,letterSpacing:4,color:phaseColor,opacity:.7}}>${PHASE_LABELS[phase]}</div>
           <div style=${{position:"relative",width:240,height:240}}>
             <svg width="240" height="240" style=${{position:"absolute"}}>
@@ -264,7 +304,7 @@ function App(){
       <div style=${{width:"100%",maxWidth:480,padding:"28px 24px 0"}}>
         <div style=${{textAlign:"center",marginBottom:4}}>
           <div style=${{fontSize:11,letterSpacing:6,color:"#5a4a3a",marginBottom:6}}>SAMATHA</div>
-          <h1 style=${{fontWeight:300,fontSize:28,color:"#d4b896",letterSpacing:2}}>瞑想タイマー</h1>
+          <h1 style=${{fontFamily:"'Inter','Noto Sans JP',sans-serif",fontWeight:400,fontSize:28,color:"#d4b896",letterSpacing:4}}>Meditation</h1>
         </div>
         <div style=${{display:"flex",justifyContent:"center",gap:8,marginTop:20,borderBottom:"1px solid #1e1a16",paddingBottom:2}}>
           <button className=${"tab "+(view==="timer"?"active":"")} onClick=${()=>setView("timer")}>TIMER</button>
@@ -312,12 +352,20 @@ function App(){
               `:html`<button className="ab s" onClick=${handleStart}>開始</button>`}
             </div>
             <div style=${{textAlign:"center",marginTop:32,color:"#3a3020",fontSize:12,letterSpacing:1}}>
-              ${todayTotal>0?html`
-                <span style=${{color:"#5a4a3a"}}>今日</span>
-                ${" "}<span style=${{color:"#c9a87a",fontSize:16}}>${Math.round(todayTotal/60)}</span>
-                <span style=${{color:"#5a4a3a"}}>分</span>
-                ${dailyGoal>0&&html`<span style=${{color:"#3a3020"}}> / ${dailyGoal}分</span>`}
-              `:dailyGoal>0?html`<span style=${{color:"#2a2018"}}>今日の目標 ${dailyGoal}分</span>`:null}
+              ${(()=>{
+                const h=new Date().getHours();
+                const isAmNow=h>=3&&h<15;
+                const currentGoal=isAmNow?amGoal:pmGoal;
+                const currentTotal=isAmNow?amTotal:pmTotal;
+                const label=isAmNow?"午前":"午後";
+                if(currentTotal>0||currentGoal>0)return html`
+                  <span style=${{color:"#5a4a3a"}}>${label} </span>
+                  <span style=${{color:"#c9a87a",fontSize:16}}>${Math.round(currentTotal/60)}</span>
+                  <span style=${{color:"#5a4a3a"}}>分</span>
+                  ${currentGoal>0&&html`<span style=${{color:"#3a3020"}}> / ${currentGoal}分</span>`}
+                `;
+                return null;
+              })()}
             </div>
           </div>
         `:html`
@@ -342,7 +390,7 @@ function App(){
             </div>
 
             <div style=${{background:"#0f0e0a",border:"1px solid #1a1610",borderRadius:8,padding:"14px 16px",marginBottom:24}}>
-              <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+              <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <div style=${{fontSize:11,letterSpacing:2,color:"#4a3a2a"}}>1日の目標</div>
                 <div style=${{display:"flex",alignItems:"center",gap:6}}>
                   ${[60,90,120,180].map(m=>html`
@@ -351,14 +399,48 @@ function App(){
                   <span style=${{fontSize:11,color:"#4a3a2a"}}>分</span>
                 </div>
               </div>
-              ${dailyGoal>0&&html`
-                <div style=${{marginTop:10}}>
-                  <div style=${{height:2,background:"#1a1814",borderRadius:1,overflow:"hidden"}}>
-                    <div style=${{height:"100%",width:`${Math.min(todayTotal/(dailyGoal*60),1)*100}%`,background:"linear-gradient(to right,#c9a87a,#e8d4a8)",borderRadius:1,transition:"width .6s"}}/>
+              ${(()=>{
+                const step=10;
+                const valid=amGoal+pmGoal===dailyGoal;
+                return html`
+                  <div>
+                    <div style=${{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                      ${[
+                        {label:"午前",dec:()=>{setAmGoal(a=>{const v=Math.max(0,a-step);setPmGoal(dailyGoalRef.current-v);return v;});},inc:()=>{setAmGoal(a=>{const v=Math.min(dailyGoalRef.current,a+step);setPmGoal(dailyGoalRef.current-v);return v;});}},
+                        {label:"午後",dec:()=>{setPmGoal(p=>{const v=Math.max(0,p-step);setAmGoal(dailyGoalRef.current-v);return v;});},inc:()=>{setPmGoal(p=>{const v=Math.min(dailyGoalRef.current,p+step);setAmGoal(dailyGoalRef.current-v);return v;});}}
+                      ].map(({label,dec,inc},idx)=>{
+                        const val=idx===0?amGoal:pmGoal;
+                        return html`
+                          <div key=${label} style=${{background:"#0d0c09",border:"1px solid #1e1a16",borderRadius:6,padding:"10px",textAlign:"center"}}>
+                            <div style=${{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:6}}>${label}</div>
+                            <div style=${{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                              <button ...${makeLongPress(dec,idx===0?lpTimer:lpTimer3,idx===0?lpInterval:lpInterval3)} style=${{width:22,height:22,background:"none",border:"1px solid #2a2520",borderRadius:3,cursor:"pointer",userSelect:"none",fontSize:14,color:"#5a4a3a",flexShrink:0,padding:"7px",boxSizing:"content-box"}}>−</button>
+                              <span style=${{fontSize:20,fontWeight:300,color:"#c9a87a",minWidth:36,textAlign:"center"}}>${val}</span>
+                              <button ...${makeLongPress(inc,idx===0?lpTimer2:lpTimer4,idx===0?lpInterval2:lpInterval4)} style=${{width:22,height:22,background:"none",border:"1px solid #2a2520",borderRadius:3,cursor:"pointer",userSelect:"none",fontSize:14,color:"#5a4a3a",flexShrink:0,padding:"7px",boxSizing:"content-box"}}>＋</button>
+                            </div>
+                            <div style=${{fontSize:9,color:"#3a3020",marginTop:4,userSelect:"none"}}>分</div>
+                          </div>
+                        `;
+                      })}
+                    </div>
+                    <div style=${{display:"flex",justifyContent:"flex-end",marginBottom:8,minHeight:24}}>
+                      ${valid&&html`<div style=${{fontSize:10,color:"#c9a87a",letterSpacing:1}}>✓ 保存済み</div>`}
+                    </div>
+                    ${valid&&html`
+                      <div style=${{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                        ${[{label:"午前",total:amTotal,goal:amGoal},{label:"午後",total:pmTotal,goal:pmGoal}].map(({label,total,goal})=>html`
+                          <div key=${label}>
+                            <div style=${{height:2,background:"#1a1814",borderRadius:1,overflow:"hidden"}}>
+                              <div style=${{height:"100%",width:`${Math.min(total/(goal*60)||0,1)*100}%`,background:"linear-gradient(to right,#c9a87a,#e8d4a8)",borderRadius:1,transition:"width .6s"}}/>
+                            </div>
+                            <div style=${{fontSize:9,color:"#3a3020",marginTop:3,textAlign:"right"}}>${Math.round(total/60)}分 / ${goal}分</div>
+                          </div>
+                        `)}
+                      </div>
+                    `}
                   </div>
-                  <div style=${{fontSize:10,color:"#3a3020",marginTop:5,textAlign:"right",letterSpacing:1}}>${Math.round(todayTotal/60)}分 / ${dailyGoal}分</div>
-                </div>
-              `}
+                `;
+              })()}
             </div>
 
             <${DustMountain} totalMinutes=${Math.floor(totalAll/60)} totalAll=${totalAll}/>
