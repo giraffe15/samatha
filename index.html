@@ -141,7 +141,6 @@ function App(){
   const [weeklyGoal,setWeeklyGoal]=useState(null);
   const [goalDraft,setGoalDraft]=useState({dailyGoal:60,amGoal:30,pmGoal:30});
   const [confirmingGoal,setConfirmingGoal]=useState(false);
-  const [showSplitInfo,setShowSplitInfo]=useState(false);
 
   const iRef=useRef(null),audioRef=useRef(null),wlRef=useRef(null);
   const tsRef=useRef(null),pausedRef=useRef(0),bellsRef=useRef(new Set()),runRef=useRef(false);
@@ -325,4 +324,4 @@ function App(){
           <div style=${{position:"relative",width:240,height:240}}>
             <svg width="240" height="240" style=${{position:"absolute"}}>
               <circle cx="120" cy="120" r="108" fill="none" stroke="#1a1814" strokeWidth="2"/>
-              <circle cx="120" cy="120" r
+              <circle cx="120" cy="120" r="108" fill="none" stroke=${phaseColor} strokeWidth="1.5"
