@@ -106,13 +106,13 @@ function DustMountain({totalMinutes,totalAll}){
             const x=(slot.col+(MOUNTAIN_ROWS-slot.width)/2)*(CELL+GAP);
             const y=(MOUNTAIN_ROWS-1-slot.row)*(CELL+GAP);
             const color=filled?gc[i%gc.length]:"#1a1814";
-            return html`<div key=${i} style=${{position:"absolute",left:x,top:y,width:CELL,height:CELL,borderRadius:2,background:color,opacity:filled?(shimmer?1:0.85):0.4,boxShadow:filled?`0 0 ${shimmer?8:4}px ${color}${shimmer?"99":"66"}`:"none",transition:"background .8s,box-shadow .8s"}}/>`;
+            return html`<div key=${i} style=${{position:"absolute",left:x,top:y,width:CELL,height:CELL,borderRadius:2,background:color,opacity:filled?(shimmer?1:0.85):0.4,boxShadow:filled?"0 0 "+(shimmer?8:4)+"px "+color+(shimmer?"99":"66"):"none",transition:"background .8s,box-shadow .8s"}}/>`;
           })}
         </div>
       </div>
       <div style=${{marginTop:14}}>
         <div style=${{height:2,background:"#1a1814",borderRadius:1,overflow:"hidden"}}>
-          <div style=${{height:"100%",width:`${justCompleted?100:(rem/MOUNTAIN_SIZE)*100}%`,background:shimmer?"linear-gradient(to right,#c9a87a,#e8d4a8)":"linear-gradient(to right,#38bdf8,#7dd3fc)",borderRadius:1,transition:"width .6s,background 1s"}}/>
+          <div style=${{height:"100%",width:(justCompleted?100:(rem/MOUNTAIN_SIZE)*100)+"%",background:shimmer?"linear-gradient(to right,#c9a87a,#e8d4a8)":"linear-gradient(to right,#38bdf8,#7dd3fc)",borderRadius:1,transition:"width .6s,background 1s"}}/>
         </div>
         ${!justCompleted&&html`<div style=${{fontSize:10,color:"#2a3a4a",marginTop:6,letterSpacing:1,textAlign:"right"}}>次の山まで ${MOUNTAIN_SIZE-rem}粒 (${Math.round((MOUNTAIN_SIZE-rem)*10/60)}時間${Math.round((MOUNTAIN_SIZE-rem)*10%60)}分)</div>`}
       </div>
