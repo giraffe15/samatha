@@ -19,6 +19,7 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script type="text/babel">
 const {useState,useEffect,useRef,useCallback}=React;
+// Samatha v3.2
 
 const PRESETS = [15, 30, 45, 60, 90];
 const MIN_RECORD_SEC = 600;
@@ -142,6 +143,8 @@ function App() {
   const [goalDraft, setGoalDraft] = useState({dailyGoal:60,amGoal:30,pmGoal:30});
   const [confirmingGoal, setConfirmingGoal] = useState(false);
   const [showSplitInfo, setShowSplitInfo] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;});
+  const [selectedDate, setSelectedDate] = useState(null);
 
   const iRef=useRef(null), audioRef=useRef(null), wlRef=useRef(null);
   const tsRef=useRef(null), pausedRef=useRef(0), bellsRef=useRef(new Set()), runRef=useRef(false);
@@ -284,18 +287,6 @@ function App() {
   const weekAvg = Math.round(weekTotal/60/weekDaysElapsed);
   const monthAvg = (()=>{ const d=new Date(); if(d.getHours()<3)d.setDate(d.getDate()-1); return Math.round(monthTotal/60/d.getDate()); })();
   const avgAll = (()=>{ if(sessions.length===0)return 0; const first=Object.keys(byDate).sort()[0]; const d1=new Date(first),d2=new Date(todayStr()); const days=Math.max(1,Math.round((d2-d1)/(1000*60*60*24))+1); return Math.round(totalAll/60/days); })();
-  const heatColor = m => m===0?"#1a1814":m<10?"#2d3822":m<20?"#4a6030":m<30?"#7a8f40":"#c9a87a";
-  const MONTHS = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-  const heatWeeks = (()=>{
-    const end=new Date(); const firstDate=Object.keys(byDate).sort()[0];
-    const start=firstDate?new Date(firstDate):new Date();
-    const maxStart=new Date(); maxStart.setDate(end.getDate()-364);
-    if(start<maxStart)start.setTime(maxStart.getTime());
-    const ps=new Date(start); ps.setDate(start.getDate()-start.getDay());
-    const weeks=[],cur=new Date(ps);
-    while(cur<=end){const w=[];for(let d=0;d<7;d++){const ds=localDateStr(cur);w.push({date:ds,mins:Math.round((byDate[ds]||0)/60),inRange:cur>=start&&cur<=end});cur.setDate(cur.getDate()+1);}weeks.push(w);}
-    return weeks;
-  })();
 
   const f = "Inter,'Noto Sans JP',sans-serif";
 
@@ -516,7 +507,10 @@ function App() {
                 <div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                     <div style={{fontSize:11,letterSpacing:2,color:"#4a3a2a"}}>今週の目標</div>
-                    <div style={{fontSize:10,color:"#3a3020",letterSpacing:1}}>🔒 {weeklyGoal.weekStart}〜</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <button onClick={()=>setShowSplitInfo(true)} style={{background:"none",border:"1px solid #2a2520",color:"#4a3a2a",borderRadius:"50%",width:18,height:18,cursor:"pointer",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>?</button>
+                      <div style={{fontSize:10,color:"#3a3020",letterSpacing:1}}>🔒 {weeklyGoal.weekStart}〜</div>
+                    </div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
                     {[{l:"1日",v:dailyGoal},{l:"前半",v:amGoal},{l:"後半",v:pmGoal}].map(({l,v})=>(
@@ -566,26 +560,69 @@ function App() {
 
             <DustMountain totalMinutes={Math.floor(totalAll/60)} totalAll={totalAll}/>
 
-            <div style={{background:"#0f0e0a",border:"1px solid #1a1610",borderRadius:8,padding:"16px 14px",marginBottom:24,overflowX:"auto"}}>
-              <div style={{fontSize:11,letterSpacing:2,color:"#4a3a2a",marginBottom:12}}>記録</div>
-              <div style={{display:"flex",marginLeft:18,marginBottom:4}}>
-                {(()=>{const ls=[];let lm=-1;heatWeeks.forEach((w,i)=>{const m=new Date(w[0].date).getMonth();ls.push(m!==lm?<div key={i} style={{fontSize:9,color:"#4a3a2a",width:11,flexShrink:0,overflow:"visible",whiteSpace:"nowrap"}}>{MONTHS[m]}</div>:<div key={i} style={{width:11,flexShrink:0}}/>);if(m!==lm)lm=m;});return ls;})()}
-              </div>
-              <div style={{display:"flex",gap:1}}>
-                <div style={{display:"flex",flexDirection:"column",gap:1,marginRight:3}}>
-                  {["日","月","火","水","木","金","土"].map((d,i)=><div key={d} style={{width:14,height:10,fontSize:8,color:i%2===1?"#4a3a2a":"transparent",display:"flex",alignItems:"center"}}>{d}</div>)}
-                </div>
-                {heatWeeks.map((w,wi)=>(
-                  <div key={wi} style={{display:"flex",flexDirection:"column",gap:1}}>
-                    {w.map((c,di)=><div key={di} title={c.inRange?(c.date+" "+c.mins+"分"):""} style={{width:10,height:10,borderRadius:2,background:c.inRange?heatColor(c.mins):"transparent",opacity:c.inRange?1:0}}/>)}
+            <div style={{background:"#0f0e0a",border:"1px solid #1a1610",borderRadius:8,padding:"16px",marginBottom:24}}>
+              {(()=>{
+                // カレンダー月のセッション
+                const [cy,cm]=calendarMonth.split("-").map(Number);
+                const daysInMonth=new Date(cy,cm,0).getDate();
+                const firstDow=new Date(cy,cm-1,1).getDay(); // 0=日
+                // 最初の記録月
+                const firstSession=Object.keys(byDate).sort()[0];
+                const minMonth=firstSession?firstSession.slice(0,7):`${cy}-${String(cm).padStart(2,"0")}`;
+                const todayMonth=`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
+                const canPrev=calendarMonth>minMonth;
+                const canNext=calendarMonth<todayMonth;
+                const prevMonth=()=>{const d=new Date(cy,cm-2,1);setCalendarMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);setSelectedDate(null);};
+                const nextMonth=()=>{const d=new Date(cy,cm,1);setCalendarMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);setSelectedDate(null);};
+                const days=Array.from({length:daysInMonth},(_,i)=>{
+                  const dateStr=`${cy}-${String(cm).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`;
+                  return{dateStr,mins:Math.round((byDate[dateStr]||0)/60)};
+                });
+                const selectedSessions=selectedDate?sessions.filter(s=>s.date===selectedDate).sort((a,b)=>new Date(a.startTime||0)-new Date(b.startTime||0)):[];
+                return(<>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                    <button onClick={prevMonth} disabled={!canPrev} style={{background:"none",border:"none",color:canPrev?"#5a4a3a":"#2a2020",cursor:canPrev?"pointer":"default",fontSize:16,padding:"0 8px"}}>‹</button>
+                    <div style={{fontSize:11,letterSpacing:2,color:"#4a3a2a"}}>{cy}年 {cm}月</div>
+                    <button onClick={nextMonth} disabled={!canNext} style={{background:"none",border:"none",color:canNext?"#5a4a3a":"#2a2020",cursor:canNext?"pointer":"default",fontSize:16,padding:"0 8px"}}>›</button>
                   </div>
-                ))}
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:4,marginTop:10,justifyContent:"flex-end"}}>
-                <span style={{fontSize:9,color:"#3a2a1a"}}>少</span>
-                {[0,5,15,25,35].map(m=><div key={m} style={{width:10,height:10,borderRadius:2,background:heatColor(m)}}/>)}
-                <span style={{fontSize:9,color:"#3a2a1a"}}>多</span>
-              </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+                    {["日","月","火","水","木","金","土"].map(d=><div key={d} style={{textAlign:"center",fontSize:9,color:"#3a3020",padding:"2px 0"}}>{d}</div>)}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                    {Array.from({length:firstDow},(_,i)=><div key={"e"+i}/>)}
+                    {days.map(({dateStr,mins})=>{
+                      const isToday=dateStr===todayStr();
+                      const isSel=dateStr===selectedDate;
+                      const hasSessions=mins>0;
+                      return(
+                        <div key={dateStr} onClick={()=>setSelectedDate(isSel?null:dateStr)}
+                          style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:4,cursor:hasSessions?"pointer":"default",background:isSel?"#1a1510":isToday?"#0f0e0a":"none",border:isToday?"1px solid #3a3020":"1px solid transparent",position:"relative"}}>
+                          <div style={{fontSize:11,color:isSel?"#c9a87a":isToday?"#a89070":hasSessions?"#7a6a5a":"#2a2020"}}>{parseInt(dateStr.slice(8))}</div>
+                          {hasSessions&&<div style={{width:4,height:4,borderRadius:"50%",background:isSel?"#c9a87a":"#5a4a3a",marginTop:1}}/>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {selectedDate&&selectedSessions.length>0&&(
+                    <div style={{marginTop:12,borderTop:"1px solid #1e1a16",paddingTop:12}}>
+                      <div style={{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:8}}>{selectedDate}</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        {selectedSessions.map((s,i)=>{
+                          const st=s.startTime?new Date(s.startTime):null;
+                          const timeStr=st?`${String(st.getHours()).padStart(2,"0")}:${String(st.getMinutes()).padStart(2,"0")}`:"--:--";
+                          return(
+                            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:"#0d0c09",borderRadius:4}}>
+                              <div style={{fontSize:11,color:"#5a4a3a"}}>{timeStr}</div>
+                              <div style={{fontSize:15,color:"#a89070",fontWeight:300}}>{Math.round(s.duration/60)}<span style={{fontSize:11,color:"#5a4a3a"}}>分</span></div>
+                            </div>
+                          );
+                        })}
+                        <div style={{fontSize:10,color:"#3a3020",textAlign:"right",marginTop:2}}>合計 {selectedSessions.reduce((a,s)=>a+Math.round(s.duration/60),0)}分</div>
+                      </div>
+                    </div>
+                  )}
+                </>);
+              })()}
             </div>
 
             <div style={{fontSize:11,letterSpacing:2,color:"#4a3a2a",marginBottom:12}}>履歴</div>
