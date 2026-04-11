@@ -141,6 +141,7 @@ function App(){
   const [weeklyGoal,setWeeklyGoal]=useState(null);
   const [goalDraft,setGoalDraft]=useState({dailyGoal:60,amGoal:30,pmGoal:30});
   const [confirmingGoal,setConfirmingGoal]=useState(false);
+  const [showSplitInfo,setShowSplitInfo]=useState(false);
 
   const iRef=useRef(null),audioRef=useRef(null),wlRef=useRef(null);
   const tsRef=useRef(null),pausedRef=useRef(0),bellsRef=useRef(new Set()),runRef=useRef(false);
@@ -282,9 +283,10 @@ function App(){
   const last14=Array.from({length:14},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(13-i));return localDateStr(d);});
   const todayTotal=byDate[todayStr()]||0;
   const weekTotal=last14.slice(7).reduce((a,d)=>a+(byDate[d]||0),0);
+  const weekDaysElapsed=(()=>{const mon=new Date(getMondayStr());const today=new Date(todayStr());return Math.min(7,Math.round((today-mon)/(1000*60*60*24))+1);})();
   const totalAll=sessions.reduce((a,s)=>a+s.duration,0);
   const monthTotal=(()=>{const d=new Date();if(d.getHours()<3)d.setDate(d.getDate()-1);const prefix=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;return Object.entries(byDate).filter(([k])=>k.startsWith(prefix)).reduce((a,[,v])=>a+v,0);})();
-  const isAM=(s)=>{const h=new Date(s.startTime||0).getHours();return h>=3&&h<15;};
+  const isAM=(s)=>{const h=new Date(s.startTime||0).getHours();return h>=3&&h<12;};
   const todaySessions=sessions.filter(s=>s.date===todayStr());
   const amTotal=todaySessions.filter(s=>s.startTime&&isAM(s)).reduce((a,s)=>a+s.duration,0);
   const pmTotal=todaySessions.filter(s=>s.startTime&&!isAM(s)).reduce((a,s)=>a+s.duration,0);
@@ -296,12 +298,23 @@ function App(){
   const streak=(()=>{let s=0,d=new Date();if(d.getHours()<3)d.setDate(d.getDate()-1);while(byDate[localDateStr(d)]){s++;d.setDate(d.getDate()-1);}return s;})();
   const bestStreak=(()=>{const dates=Object.keys(byDate).sort();let best=0,cur=0,prev=null;for(const dt of dates){if(prev){const p=new Date(prev);p.setDate(p.getDate()+1);cur=localDateStr(p)===dt?cur+1:1;}else{cur=1;}best=Math.max(best,cur);prev=dt;}return best;})();
   const last14Avg=Math.round(last14.reduce((a,d)=>a+(byDate[d]||0),0)/60/14);
-  const weekAvg=Math.round(weekTotal/60/7);
+  const weekAvg=Math.round(weekTotal/60/weekDaysElapsed);
   const monthAvg=(()=>{const d=new Date();if(d.getHours()<3)d.setDate(d.getDate()-1);return Math.round(monthTotal/60/d.getDate());})();
   const avgAll=(()=>{if(sessions.length===0)return 0;const first=Object.keys(byDate).sort()[0];const d1=new Date(first),d2=new Date(todayStr());const days=Math.max(1,Math.round((d2-d1)/(1000*60*60*24))+1);return Math.round(totalAll/60/days);})();
   const heatColor=m=>m===0?"#1a1814":m<10?"#2d3822":m<20?"#4a6030":m<30?"#7a8f40":"#c9a87a";
   const MONTHS=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-  const heatWeeks=(()=>{const end=new Date(),start=new Date();start.setDate(end.getDate()-364);const ps=new Date(start);ps.setDate(start.getDate()-start.getDay());const weeks=[],cur=new Date(ps);while(cur<=end){const w=[];for(let d=0;d<7;d++){const ds=localDateStr(cur);w.push({date:ds,mins:Math.round((byDate[ds]||0)/60),inRange:cur>=start&&cur<=end});cur.setDate(cur.getDate()+1);}weeks.push(w);}return weeks;})();
+  const heatWeeks=(()=>{
+    const end=new Date();
+    const firstDate=Object.keys(byDate).sort()[0];
+    const start=firstDate?new Date(firstDate):new Date();
+    // 最大364日、最小は今日
+    const maxStart=new Date();maxStart.setDate(end.getDate()-364);
+    if(start<maxStart)start.setTime(maxStart.getTime());
+    const ps=new Date(start);ps.setDate(start.getDate()-start.getDay());
+    const weeks=[],cur=new Date(ps);
+    while(cur<=end){const w=[];for(let d=0;d<7;d++){const ds=localDateStr(cur);w.push({date:ds,mins:Math.round((byDate[ds]||0)/60),inRange:cur>=start&&cur<=end});cur.setDate(cur.getDate()+1);}weeks.push(w);}
+    return weeks;
+  })();
 
   return html`
     <div style=${{minHeight:"100vh",background:"#09090f",color:"#e8e4dc",fontFamily:"'Inter','Noto Sans JP',sans-serif",display:"flex",flexDirection:"column",alignItems:"center",WebkitUserSelect:"none",userSelect:"none"}}>
@@ -312,351 +325,4 @@ function App(){
           <div style=${{position:"relative",width:240,height:240}}>
             <svg width="240" height="240" style=${{position:"absolute"}}>
               <circle cx="120" cy="120" r="108" fill="none" stroke="#1a1814" strokeWidth="2"/>
-              <circle cx="120" cy="120" r="108" fill="none" stroke=${phaseColor} strokeWidth="1.5"
-                strokeDasharray=${2*Math.PI*108} strokeDashoffset=${2*Math.PI*108*(1-Math.min(pp,1))}
-                strokeLinecap="round" transform="rotate(-90 120 120)"
-                style=${{transition:"stroke-dashoffset .5s ease,stroke .8s ease",filter:`drop-shadow(0 0 5px ${phaseColor}66)`}}/>
-            </svg>
-            <div style=${{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6}}>
-              <div style=${{fontWeight:300,fontSize:52,color:phaseColor,letterSpacing:2,fontVariantNumeric:"tabular-nums",transition:"color .8s"}}>${fmt(remaining)}</div>
-              <div style=${{width:20,height:1,background:phaseColor,opacity:.4,animation:"breathe 4s ease-in-out infinite"}}/>
-            </div>
-          </div>
-          <button className="ab x" onClick=${handleStop}>終了</button>
-          <div style=${{fontSize:10,letterSpacing:2,color:"#2a2018"}}>10分未満は記録されません</div>
-        </div>
-      `}
-
-      <div style=${{width:"100%",maxWidth:480,padding:"28px 24px 0"}}>
-        <div style=${{textAlign:"center",marginBottom:4}}>
-          <div style=${{fontSize:11,letterSpacing:6,color:"#5a4a3a",marginBottom:6}}>SAMATHA</div>
-          <h1 style=${{fontFamily:"'Inter','Noto Sans JP',sans-serif",fontWeight:400,fontSize:28,color:"#d4b896",letterSpacing:4}}>Meditation</h1>
-        </div>
-        <div style=${{display:"flex",justifyContent:"center",gap:8,marginTop:32,borderBottom:"1px solid #1e1a16",paddingBottom:2}}>
-          <button className=${"tab "+(view==="timer"?"active":"")} onClick=${()=>setView("timer")}>TIMER</button>
-          <button className=${"tab "+(view==="stats"?"active":"")} onClick=${()=>setView("stats")}>RECORD</button>
-        </div>
-      </div>
-
-      <div style=${{width:"100%",maxWidth:480,padding:"24px 24px 60px",flex:1}}>
-        ${view==="timer"?html`
-          <div className="fi">
-            ${!weeklyGoal?html`
-              <div>
-                <div style=${{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",marginBottom:16}}>
-                  ${PRESETS.map(p=>html`<button key=${p} className=${"pb "+(preset===p?"on":"")} onClick=${()=>{setPreset(p);setElapsed(0);setFinished(false);}}>${p}分</button>`)}
-                </div>
-                <div style=${{textAlign:"center",marginBottom:28,fontSize:12,color:"#3a3020",letterSpacing:1}}>
-                  準備 ${fmt(calcBuffer(preset))} · 本番 ${preset}分 · 終了 ${fmt(calcBuffer(preset))}
-                </div>
-                <div style=${{display:"flex",justifyContent:"center",marginBottom:36}}>
-                  <div style=${{position:"relative",width:260,height:260}}>
-                    <svg width="260" height="260" style=${{position:"absolute"}}>
-                      <circle cx="130" cy="130" r=${R} fill="none" stroke="#1e1a16" strokeWidth="3"/>
-                      ${[0,90,180,270].map(a=>{const r=(a-90)*Math.PI/180;return html`<circle key=${a} cx=${130+(R+12)*Math.cos(r)} cy=${130+(R+12)*Math.sin(r)} r="2" fill="#2a2520"/>`;} )}
-                    </svg>
-                    <div style=${{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                      <div style=${{fontWeight:300,fontSize:50,color:"#3a3020",letterSpacing:2}}>${fmt(bufSec*2+preset*60)}</div>
-                    </div>
-                  </div>
-                </div>
-                <div style=${{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-                  <button className="ab s" style=${{opacity:.4,cursor:"not-allowed"}} disabled>開始</button>
-                  <div style=${{fontSize:11,color:"#4a3a2a",letterSpacing:1}}>今週の目標を設定してください</div>
-                  <button onClick=${()=>setView("stats")} style=${{background:"none",border:"1px solid #3a3020",color:"#5a4a3a",borderRadius:20,padding:"6px 20px",cursor:"pointer",fontSize:12,letterSpacing:1}}>目標を設定する →</button>
-                </div>
-              </div>
-            `:html`
-              <div style=${{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",marginBottom:16}}>
-                ${PRESETS.map(p=>html`<button key=${p} className=${"pb "+(preset===p?"on":"")} onClick=${()=>{if(!running){setPreset(p);setElapsed(0);setFinished(false);}}}>${p}分</button>`)}
-              </div>
-              <div style=${{textAlign:"center",marginBottom:28,fontSize:12,color:"#3a3020",letterSpacing:1}}>
-                準備 ${fmt(calcBuffer(preset))} · 本番 ${preset}分 · 終了 ${fmt(calcBuffer(preset))}
-              </div>
-              <div style=${{display:"flex",justifyContent:"center",marginBottom:36}}>
-                <div style=${{position:"relative",width:260,height:260}}>
-                  <svg width="260" height="260" style=${{position:"absolute"}}>
-                    <circle cx="130" cy="130" r=${R} fill="none" stroke="#1e1a16" strokeWidth="3"/>
-                    ${!finished&&html`<circle cx="130" cy="130" r=${R} fill="none" stroke=${elapsed>0?phaseColor:"#3a3020"} strokeWidth="2.5"
-                      strokeDasharray=${C} strokeDashoffset=${dO} strokeLinecap="round" transform="rotate(-90 130 130)"
-                      style=${{transition:"stroke-dashoffset .5s ease,stroke .8s ease",filter:`drop-shadow(0 0 6px ${phaseColor}55)`}}/>`}
-                    ${[0,90,180,270].map(a=>{const r=(a-90)*Math.PI/180;return html`<circle key=${a} cx=${130+(R+12)*Math.cos(r)} cy=${130+(R+12)*Math.sin(r)} r="2" fill="#2a2520"/>`;} )}
-                  </svg>
-                  <div style=${{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
-                    ${finished?html`
-                      <div style=${{textAlign:"center",animation:"fadeIn .5s ease"}}>
-                        <div style=${{fontSize:32,marginBottom:4}}>✦</div>
-                        <div style=${{fontSize:13,letterSpacing:3,color:"#c9a87a"}}>完了</div>
-                      </div>
-                    `:elapsed>0?html`
-                      <div style=${{fontSize:10,letterSpacing:3,color:phaseColor,opacity:.7}}>${PHASE_LABELS[phase]}</div>
-                      <div style=${{fontWeight:300,fontSize:50,color:phaseColor,letterSpacing:2,fontVariantNumeric:"tabular-nums"}}>${fmt(remaining)}</div>
-                    `:html`
-                      <div style=${{fontWeight:300,fontSize:50,color:"#3a3020",letterSpacing:2}}>${fmt(totalSec)}</div>
-                    `}
-                  </div>
-                </div>
-              </div>
-              <div style=${{display:"flex",justifyContent:"center",gap:12}}>
-                ${finished?html`
-                  <button className="ab sv" onClick=${handleSave}>記録する</button>
-                  <button className="ab x" onClick=${()=>{setFinished(false);setElapsed(0);}}>破棄</button>
-                `:html`<button className="ab s" onClick=${handleStart}>開始</button>`}
-              </div>
-              <div style=${{textAlign:"center",marginTop:32,color:"#3a3020",fontSize:12,letterSpacing:1}}>
-                ${weeklyGoal&&(()=>{
-                  const h=new Date().getHours();
-                  const isAmNow=h>=3&&h<15;
-                  const currentGoal=isAmNow?amGoal:pmGoal;
-                  const currentTotal=isAmNow?amTotal:pmTotal;
-                  const label=isAmNow?"午前":"午後";
-                  const amShort=!isAmNow&&amTotal<amGoal*60?Math.round((amGoal*60-amTotal)/60):0;
-                  return html`
-                    ${(currentTotal>0||currentGoal>0)&&html`<div>
-                      <span style=${{color:"#5a4a3a"}}>${label} </span>
-                      <span style=${{color:"#c9a87a",fontSize:16}}>${Math.round(currentTotal/60)}</span>
-                      <span style=${{color:"#5a4a3a"}}>分</span>
-                      ${currentGoal>0&&html`<span style=${{color:"#3a3020"}}> / ${currentGoal}分</span>`}
-                    </div>`}
-                    ${amShort>0&&html`<div style=${{marginTop:4,fontSize:11,color:"#7a5a3a",letterSpacing:1}}>午前 ${amShort}分 未達成</div>`}
-                  `;
-                })()}
-              </div>
-            `}
-          </div>
-        `:html`
-          <div className="fi">
-            <div style=${{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:1,marginBottom:1,border:"1px solid #1e1a16",borderRadius:"6px 6px 0 0",overflow:"hidden"}}>
-              ${[{l:"今日",v:Math.round(todayTotal/60),u:"分"},{l:"今週平均",v:weekAvg,u:"分"},{l:"今月平均",v:monthAvg,u:"分"}].map(({l,v,u},i)=>html`
-                <div key=${l} style=${{background:"#0f0e0a",padding:"12px 6px",textAlign:"center",borderRight:i<2?"1px solid #1e1a16":"none"}}>
-                  <div style=${{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:4}}>${l}</div>
-                  <div style=${{fontSize:24,fontWeight:300,color:"#c9a87a",lineHeight:1}}>${v}</div>
-                  <div style=${{fontSize:9,color:"#3a3020",marginTop:3}}>${u}</div>
-                  ${l==="今日"&&todayAchievement&&todayAchievement!=="none"&&html`
-                    <div style=${{fontSize:8,marginTop:4,color:todayAchievement==="complete"?"#c9a87a":"#a0a0a0",letterSpacing:1}}>
-                      ${todayAchievement==="complete"?"完全達成":"準達成"}
-                    </div>
-                  `}
-                </div>
-              `)}
-            </div>
-            <div style=${{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:1,marginBottom:20,border:"1px solid #1e1a16",borderTop:"none",borderRadius:"0 0 6px 6px",overflow:"hidden"}}>
-              ${[{l:"総合平均",v:avgAll,u:"分"},{l:"連続",v:streak,u:"日"},{l:"最高連続",v:bestStreak,u:"日"}].map(({l,v,u},i)=>html`
-                <div key=${l} style=${{background:"#0d0c09",padding:"12px 6px",textAlign:"center",borderRight:i<2?"1px solid #1e1a16":"none",borderTop:"1px solid #1e1a16"}}>
-                  <div style=${{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:4}}>${l}</div>
-                  <div style=${{fontSize:24,fontWeight:300,color:"#a89070",lineHeight:1}}>${v}</div>
-                  <div style=${{fontSize:9,color:"#3a3020",marginTop:3}}>${u}</div>
-                </div>
-              `)}
-            </div>
-
-            ${weeklyGoal&&(weekComplete>0||weekPartial>0)&&html`
-              <div style=${{display:"grid",gridTemplateColumns:"1fr 1fr",gap:1,marginBottom:20,border:"1px solid #1e1a16",borderRadius:6,overflow:"hidden"}}>
-                <div style=${{background:"#0d0c09",padding:"10px 6px",textAlign:"center",borderRight:"1px solid #1e1a16"}}>
-                  <div style=${{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:4}}>今週 完全達成</div>
-                  <div style=${{fontSize:22,fontWeight:300,color:"#c9a87a",lineHeight:1}}>${weekComplete}<span style=${{fontSize:9,color:"#3a3020",marginLeft:2}}>日</span></div>
-                </div>
-                <div style=${{background:"#0d0c09",padding:"10px 6px",textAlign:"center"}}>
-                  <div style=${{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:4}}>今週 準達成</div>
-                  <div style=${{fontSize:22,fontWeight:300,color:"#a0a0a0",lineHeight:1}}>${weekPartial}<span style=${{fontSize:9,color:"#3a3020",marginLeft:2}}>日</span></div>
-                </div>
-              </div>
-            `}
-
-            <div style=${{background:"#0f0e0a",border:"1px solid "+(weeklyGoal?"#1a1610":"#3a2a1a"),borderRadius:8,padding:"14px 16px",marginBottom:24}}>
-              ${!weeklyGoal?html`
-                <div>
-                  <div style=${{fontSize:11,letterSpacing:2,color:"#c9a87a",marginBottom:16}}>今週の目標を設定</div>
-                  <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                    <div style=${{fontSize:11,color:"#4a3a2a"}}>1日の目標</div>
-                    <div style=${{display:"flex",alignItems:"center",gap:6}}>
-                      ${[60,90,120,180].map(m=>html`
-                        <button key=${m} onClick=${()=>{setDailyGoal(m);dailyGoalRef.current=m;setGoalDraft(d=>({...d,dailyGoal:m}));setAmGoal(Math.floor(m/2));setPmGoal(Math.ceil(m/2));}}
-                          style=${{background:dailyGoal===m?"#1a1510":"none",border:"1px solid "+(dailyGoal===m?"#c9a87a":"#2a2520"),color:dailyGoal===m?"#c9a87a":"#4a3a2a",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:13}}>${m}</button>
-                      `)}
-                      <span style=${{fontSize:11,color:"#4a3a2a"}}>分</span>
-                    </div>
-                  </div>
-                  ${(()=>{
-                    const step=5,valid=amGoal+pmGoal===dailyGoal;
-                    return html`
-                      <div>
-                        <div style=${{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                          ${[
-                            {label:"午前",dec:()=>{setAmGoal(a=>{const v=Math.max(0,a-step);setPmGoal(dailyGoalRef.current-v);return v;});},inc:()=>{setAmGoal(a=>{const v=Math.min(dailyGoalRef.current,a+step);setPmGoal(dailyGoalRef.current-v);return v;});}},
-                            {label:"午後",dec:()=>{setPmGoal(p=>{const v=Math.max(0,p-step);setAmGoal(dailyGoalRef.current-v);return v;});},inc:()=>{setPmGoal(p=>{const v=Math.min(dailyGoalRef.current,p+step);setAmGoal(dailyGoalRef.current-v);return v;});}}
-                          ].map(({label,dec,inc},idx)=>{
-                            const val=idx===0?amGoal:pmGoal;
-                            return html`
-                              <div key=${label} style=${{background:"#0d0c09",border:"1px solid #1e1a16",borderRadius:6,padding:"10px",textAlign:"center"}}>
-                                <div style=${{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:6}}>${label}</div>
-                                <div style=${{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                                  <button ...${makeLongPress(dec,idx===0?lpTimer:lpTimer3,idx===0?lpInterval:lpInterval3)} style=${{width:28,height:28,background:"none",border:"1px solid #2a2520",borderRadius:3,cursor:"pointer",fontSize:14,color:"#5a4a3a",flexShrink:0}}>−</button>
-                                  <span style=${{fontSize:20,fontWeight:300,color:"#c9a87a",minWidth:36,textAlign:"center"}}>${val}</span>
-                                  <button ...${makeLongPress(inc,idx===0?lpTimer2:lpTimer4,idx===0?lpInterval2:lpInterval4)} style=${{width:28,height:28,background:"none",border:"1px solid #2a2520",borderRadius:3,cursor:"pointer",fontSize:14,color:"#5a4a3a",flexShrink:0}}>＋</button>
-                                </div>
-                                <div style=${{fontSize:9,color:"#3a3020",marginTop:4}}>分</div>
-                              </div>
-                            `;
-                          })}
-                        </div>
-                        <div style=${{display:"flex",justifyContent:"flex-end"}}>
-                          ${valid&&html`<button onClick=${()=>setConfirmingGoal(true)} style=${{background:"#1a1510",border:"1px solid #c9a87a",color:"#c9a87a",borderRadius:4,padding:"5px 16px",cursor:"pointer",fontSize:12,letterSpacing:1}}>今週の目標を確定</button>`}
-                        </div>
-                      </div>
-                    `;
-                  })()}
-                </div>
-              `:html`
-                <div>
-                  <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                    <div style=${{fontSize:11,letterSpacing:2,color:"#4a3a2a"}}>今週の目標</div>
-                    <div style=${{fontSize:10,color:"#3a3020",letterSpacing:1}}>🔒 ${weeklyGoal.weekStart}〜</div>
-                  </div>
-                  <div style=${{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
-                    ${[{l:"1日",v:dailyGoal},{l:"午前",v:amGoal},{l:"午後",v:pmGoal}].map(({l,v})=>html`
-                      <div key=${l} style=${{background:"#0d0c09",border:"1px solid #1e1a16",borderRadius:6,padding:"8px",textAlign:"center"}}>
-                        <div style=${{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:4}}>${l}</div>
-                        <div style=${{fontSize:18,fontWeight:300,color:"#a89070"}}>${v}<span style=${{fontSize:10,color:"#3a3020"}}>分</span></div>
-                      </div>
-                    `)}
-                  </div>
-                  <div style=${{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                    ${[{label:"午前",total:amTotal,goal:amGoal},{label:"午後",total:pmTotal,goal:pmGoal}].map(({label,total,goal})=>html`
-                      <div key=${label}>
-                        <div style=${{height:2,background:"#1a1814",borderRadius:1,overflow:"hidden"}}>
-                          <div style=${{height:"100%",width:`${Math.min(total/(goal*60)||0,1)*100}%`,background:"linear-gradient(to right,#c9a87a,#e8d4a8)",borderRadius:1,transition:"width .6s"}}/>
-                        </div>
-                        <div style=${{fontSize:9,color:"#3a3020",marginTop:3,textAlign:"right"}}>${Math.round(total/60)}分 / ${goal}分</div>
-                      </div>
-                    `)}
-                  </div>
-                </div>
-              `}
-            </div>
-
-            <div style=${{background:"#0f0e0a",border:"1px solid #1a1610",borderRadius:8,padding:"20px 16px",marginBottom:24}}>
-              <div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:16}}>
-                <div style=${{fontSize:11,letterSpacing:2,color:"#4a3a2a"}}>過去14日間</div>
-                <div style=${{fontSize:10,color:"#3a4a5a",letterSpacing:1}}>平均 <span style=${{color:"#6a7a5a",fontSize:13}}>${last14Avg}</span>分/日</div>
-              </div>
-              ${(()=>{
-                const H=80;
-                const vals=last14.map(d=>Math.round((byDate[d]||0)/60));
-                const peak=Math.max(...vals,last14Avg,1);
-                const toY=v=>H-Math.round((v/peak)*(H-8));
-                const avgY=toY(last14Avg);
-                const todayIdx=last14.indexOf(todayStr());
-                return html`
-                  <svg width="100%" height=${H+20} viewBox=${`0 0 280 ${H+20}`} preserveAspectRatio="none">
-                    <line x1="0" y1=${avgY} x2="280" y2=${avgY} stroke="#4a5a3a" strokeWidth="1" strokeDasharray="4 3" opacity="0.6"/>
-                    <polyline fill="none" stroke="#5a4a30" strokeWidth="1.5" strokeLinejoin="round" points=${vals.map((v,i)=>`${(i/(last14.length-1))*280},${toY(v)}`).join(" ")}/>
-                    ${todayIdx>=0&&html`<circle cx=${(todayIdx/(last14.length-1))*280} cy=${toY(vals[todayIdx])} r="4" fill="#c9a87a" style=${{filter:"drop-shadow(0 0 4px #c9a87a88)"}}/>`}
-                    ${vals.map((v,i)=>{const x=(i/(last14.length-1))*280,y=toY(v),it=last14[i]===todayStr();return v>0&&!it?html`<circle key=${i} cx=${x} cy=${y} r="2.5" fill="#3a3020" stroke="#5a4a30" strokeWidth="1"/>`:null;})}
-                    ${last14.map((date,i)=>{const it=date===todayStr();return(i%2===0||it)?html`<text key=${i} x=${(i/(last14.length-1))*280} y=${H+14} textAnchor="middle" fontSize="8" fill=${it?"#c9a87a":"#3a2a1a"}>${getDayLabel(date)}</text>`:null;})}
-                  </svg>
-                `;
-              })()}
-            </div>
-
-            <${DustMountain} totalMinutes=${Math.floor(totalAll/60)} totalAll=${totalAll}/>
-
-            <div style=${{background:"#0f0e0a",border:"1px solid #1a1610",borderRadius:8,padding:"16px 14px",marginBottom:24,overflowX:"auto"}}>
-              <div style=${{fontSize:11,letterSpacing:2,color:"#4a3a2a",marginBottom:12}}>過去1年</div>
-              <div style=${{display:"flex",marginLeft:18,marginBottom:4}}>
-                ${(()=>{const ls=[];let lm=-1;heatWeeks.forEach((w,i)=>{const m=new Date(w[0].date).getMonth();ls.push(m!==lm?html`<div key=${i} style=${{fontSize:9,color:"#4a3a2a",width:11,flexShrink:0,overflow:"visible",whiteSpace:"nowrap"}}>${MONTHS[m]}</div>`:html`<div key=${i} style=${{width:11,flexShrink:0}}/>`);if(m!==lm)lm=m;});return ls;})()}
-              </div>
-              <div style=${{display:"flex",gap:1}}>
-                <div style=${{display:"flex",flexDirection:"column",gap:1,marginRight:3}}>
-                  ${["日","月","火","水","木","金","土"].map((d,i)=>html`<div key=${d} style=${{width:14,height:10,fontSize:8,color:i%2===1?"#4a3a2a":"transparent",display:"flex",alignItems:"center"}}>${d}</div>`)}
-                </div>
-                ${heatWeeks.map((w,wi)=>html`
-                  <div key=${wi} style=${{display:"flex",flexDirection:"column",gap:1}}>
-                    ${w.map((c,di)=>html`<div key=${di} title=${c.inRange?`${c.date} ${c.mins}分`:""} style=${{width:10,height:10,borderRadius:2,background:c.inRange?heatColor(c.mins):"transparent",opacity:c.inRange?1:0}}/>`)}
-                  </div>
-                `)}
-              </div>
-              <div style=${{display:"flex",alignItems:"center",gap:4,marginTop:10,justifyContent:"flex-end"}}>
-                <span style=${{fontSize:9,color:"#3a2a1a"}}>少</span>
-                ${[0,5,15,25,35].map(m=>html`<div key=${m} style=${{width:10,height:10,borderRadius:2,background:heatColor(m)}}/>`)}
-                <span style=${{fontSize:9,color:"#3a2a1a"}}>多</span>
-              </div>
-            </div>
-
-            <div style=${{fontSize:11,letterSpacing:2,color:"#4a3a2a",marginBottom:12}}>履歴</div>
-            ${sessions.length===0?html`
-              <div style=${{color:"#3a2a1a",fontSize:14,textAlign:"center",padding:20}}>まだ記録がありません</div>
-            `:html`
-              <div style=${{display:"flex",flexDirection:"column",gap:6}}>
-                ${sessions.slice(0,30).map(s=>html`
-                  <div key=${s.id} style=${{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#0f0e0a",border:"1px solid #1a1610",borderRadius:6}}>
-                    <div style=${{color:"#5a4a3a",fontSize:13}}>${s.date}</div>
-                    <div style=${{display:"flex",alignItems:"center",gap:12}}>
-                      <div style=${{color:"#a89070",fontSize:18}}>${Math.round(s.duration/60)}<span style=${{fontSize:12,color:"#5a4a3a"}}>分</span></div>
-                      <button onClick=${()=>handleDeleteSession(s.id)} style=${{background:"none",border:"none",color:"#3a2520",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px"}}>×</button>
-                    </div>
-                  </div>
-                `)}
-              </div>
-            `}
-
-            <div style=${{marginTop:32,paddingTop:24,borderTop:"1px solid #1a1610",display:"flex",flexDirection:"column",gap:10}}>
-              <div style=${{fontSize:11,letterSpacing:2,color:"#2a2018",marginBottom:4}}>設定</div>
-              <div style=${{display:"flex",gap:8,flexWrap:"wrap"}}>
-                <button onClick=${()=>{const data=JSON.stringify(sessions,null,2);const blob=new Blob([data],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`samatha_backup_${todayStr()}.json`;a.click();URL.revokeObjectURL(url);}} style=${{background:"none",border:"1px solid #2a2520",color:"#5a4a3a",borderRadius:4,padding:"7px 16px",cursor:"pointer",fontSize:13,letterSpacing:1}}>↓ エクスポート</button>
-                <label style=${{background:"none",border:"1px solid #2a2520",color:"#5a4a3a",borderRadius:4,padding:"7px 16px",cursor:"pointer",fontSize:13,letterSpacing:1}}>
-                  ↑ インポート
-                  <input type="file" accept=".json" style=${{display:"none"}} onChange=${(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=(ev)=>{try{const imported=JSON.parse(ev.target.result);if(Array.isArray(imported)){save(imported);alert(`${imported.length}件インポートしました`);}}catch{alert("読み込みに失敗しました");}};reader.readAsText(file);e.target.value="";}}/>
-                </label>
-                <button onClick=${()=>{if(bellTesting)return;setBellTesting(true);try{getAudio().resume();}catch{}playEndBell(audioRef.current||getAudio(),3000);setTimeout(()=>setBellTesting(false),3000+5*1200+500);}} style=${{background:"none",border:"1px solid #2a2520",color:bellTesting?"#2a2520":"#5a4a3a",borderRadius:4,padding:"7px 16px",cursor:bellTesting?"not-allowed":"pointer",fontSize:13,letterSpacing:1}}>🔔 ${bellTesting?"確認中...":"アラーム確認"}</button>
-              </div>
-            </div>
-          </div>
-        `}
-      </div>
-
-      ${confirmingGoal&&html`
-        <div style=${{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-          <div style=${{background:"#0f0e0a",border:"1px solid #2a2520",borderRadius:12,padding:"32px 24px",width:"100%",maxWidth:320,textAlign:"center"}}>
-            <div style=${{fontSize:11,letterSpacing:3,color:"#5a4a3a",marginBottom:20}}>今週の目標</div>
-            <div style=${{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
-              ${[{l:"1日",v:dailyGoal},{l:"午前",v:amGoal},{l:"午後",v:pmGoal}].map(({l,v})=>html`
-                <div key=${l} style=${{background:"#0d0c09",border:"1px solid #1e1a16",borderRadius:6,padding:"10px 6px",textAlign:"center"}}>
-                  <div style=${{fontSize:9,letterSpacing:2,color:"#3a3020",marginBottom:4}}>${l}</div>
-                  <div style=${{fontSize:22,fontWeight:300,color:"#c9a87a"}}>${v}<span style=${{fontSize:10,color:"#5a4a3a"}}>分</span></div>
-                </div>
-              `)}
-            </div>
-            <div style=${{fontSize:11,color:"#3a3020",marginBottom:24,letterSpacing:1}}>この内容で今週の目標を確定しますか？<br/>確定後は翌月曜まで変更できません。</div>
-            <div style=${{display:"flex",gap:12,justifyContent:"center"}}>
-              <button className="ab sv" onClick=${()=>{saveWeeklyGoal(dailyGoal,amGoal,pmGoal);setConfirmingGoal(false);}}>確定</button>
-              <button className="ab x" onClick=${()=>setConfirmingGoal(false)}>戻る</button>
-            </div>
-          </div>
-        </div>
-      `}
-
-      ${pendingSession&&html`
-        <div style=${{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-          <div style=${{background:"#0f0e0a",border:"1px solid #2a2520",borderRadius:12,padding:"32px 24px",width:"100%",maxWidth:320,textAlign:"center"}}>
-            <div style=${{fontSize:11,letterSpacing:3,color:"#5a4a3a",marginBottom:16}}>セッション終了</div>
-            <div style=${{fontSize:36,fontWeight:300,color:"#d4b896",marginBottom:8}}>
-              ${Math.floor(pendingSession.duration/60)}<span style=${{fontSize:16,color:"#7a6a5a"}}>分</span>
-              ${Math.round(pendingSession.duration%60)>0&&html`<span style=${{fontSize:20}}>${Math.round(pendingSession.duration%60)}<span style=${{fontSize:14,color:"#7a6a5a"}}>秒</span></span>`}
-            </div>
-            <div style=${{fontSize:12,color:"#3a3020",marginBottom:28,letterSpacing:1}}>記録しますか？</div>
-            <div style=${{display:"flex",gap:12,justifyContent:"center"}}>
-              <button className="ab sv" onClick=${handlePendingSave}>保存</button>
-              <button className="ab x" onClick=${()=>setPendingSession(null)}>破棄</button>
-            </div>
-          </div>
-        </div>
-      `}
-    </div>
-  `;
-}
-
-preact.render(html`<${App}/>`,document.getElementById("root"));
-</script>
-</body>
-</html>
+              <circle cx="120" cy="120" r
