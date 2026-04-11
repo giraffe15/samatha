@@ -30,9 +30,9 @@ body{background:#09090f;color:#e8e4dc;font-family:'Inter','Noto Sans JP',sans-se
 </head>
 <body>
 <div id="root"></div>
-<script src="https://unpkg.com/preact/dist/preact.umd.js"></script>
-<script src="https://unpkg.com/preact/hooks/dist/hooks.umd.js"></script>
-<script src="https://unpkg.com/htm/dist/htm.umd.js"></script>
+<script src="https://unpkg.com/preact@10.19.3/dist/preact.umd.js"></script>
+<script src="https://unpkg.com/preact@10.19.3/hooks/dist/hooks.umd.js"></script>
+<script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
 <script>
 const {useState,useEffect,useRef,useCallback}=preactHooks;
 const html=htm.bind(preact.h);
@@ -324,4 +324,4 @@ function App(){
           <div style=${{position:"relative",width:240,height:240}}>
             <svg width="240" height="240" style=${{position:"absolute"}}>
               <circle cx="120" cy="120" r="108" fill="none" stroke="#1a1814" strokeWidth="2"/>
-              <circle cx="120" cy="120" r="108" fill="none" stroke=${phaseColor} strokeWidth="1.5"
+              <circle cx="120" cy="120" r="108" fill="none" stroke=${phaseCo
