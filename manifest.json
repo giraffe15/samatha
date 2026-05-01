@@ -1,7 +1,7 @@
 {
   "name": "Samatha 瞑想タイマー",
   "short_name": "Samatha",
-  "start_url": "/samatha/",
+  "start_url": "/samatha/index.html",
   "display": "standalone",
   "background_color": "#09090f",
   "theme_color": "#09090f",
