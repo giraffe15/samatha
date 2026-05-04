@@ -36,7 +36,7 @@ body{background:#09090f;color:#e8e4dc;font-family:'Inter','Noto Sans JP',sans-se
 <script type="text/babel">
 const {useState,useEffect,useRef,useCallback}=React;
 
-// Samatha v5.3
+// Samatha v5.4
 
 const PRESETS = [15, 30, 45, 60, 90];
 const MIN_RECORD_SEC = 600;
@@ -306,7 +306,7 @@ function App() {
   };
   const cancelSleepAlarm = () => {
     clearTimeout(sleepAlarmRef.current);
-    clearInterval(sleepAlarmIntervalRef.current);
+    clearTimeout(sleepAlarmIntervalRef.current);
     sleepAlarmRef.current = null;
     sleepAlarmIntervalRef.current = null;
     sleepAlarmStartRef.current = null;
@@ -317,26 +317,35 @@ function App() {
   const startSleepAlarmSound = () => {
     setSleepAlarmActive(true);
     sleepAlarmStartRef.current = Date.now();
-    const beep = () => {
+    const playBeeps = () => {
       const ctx = audioRef.current || getAudio();
       const elapsed = (Date.now() - sleepAlarmStartRef.current) / 1000;
-      const vol = Math.min(0.05 + elapsed / 60, 1.0);
-      // iPhoneアラーム風: 2連符 × 3セット
-      [[0,0.08],[0.15,0.08],[0.5,0.08],[0.65,0.08],[1.0,0.08],[1.15,0.08]].forEach(([t,dur])=>{
-        const o=ctx.createOscillator(),g=ctx.createGain();
-        o.connect(g);g.connect(ctx.destination);
-        o.frequency.value=1046; // C6
-        g.gain.setValueAtTime(0,ctx.currentTime+t);
-        g.gain.linearRampToValueAtTime(vol,ctx.currentTime+t+0.01);
-        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+dur);
-        o.start(ctx.currentTime+t);
-        o.stop(ctx.currentTime+t+dur+0.05);
+      const vol = Math.min(0.1 + (elapsed / 45) * 0.9, 1.0);
+      // 段階的リズム: 0-15秒=2音, 15-30秒=3音, 30-45秒=4音, 45秒以降=連打7音
+      let pattern;
+      if(elapsed < 15) pattern = [0, 0.18];
+      else if(elapsed < 30) pattern = [0, 0.18, 0.36];
+      else if(elapsed < 45) pattern = [0, 0.15, 0.30, 0.45];
+      else pattern = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
+      const interval = elapsed < 45 ? 1.2 : 0.9;
+      pattern.forEach(t => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 1046;
+        g.gain.setValueAtTime(0, ctx.currentTime + t);
+        g.gain.linearRampToValueAtTime(vol, ctx.currentTime + t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.09);
+        o.start(ctx.currentTime + t);
+        o.stop(ctx.currentTime + t + 0.12);
       });
+      return interval * 1000;
     };
-    beep();
-    sleepAlarmIntervalRef.current = setInterval(beep, 2000);
-    vib([200,100,200,100,200,800]);
-    sleepAlarmIntervalRef.current && setInterval(()=>vib([200,100,200,100,200,800]), 2000);
+    const scheduleNext = () => {
+      const interval = playBeeps();
+      sleepAlarmIntervalRef.current = setTimeout(scheduleNext, interval);
+    };
+    scheduleNext();
+    vib([200, 100, 200, 800]);
   };
 
   const handleSave = () => {
@@ -431,7 +440,7 @@ function App() {
           <div style={{fontSize:11,letterSpacing:6,color:"#5a4a3a",marginBottom:6}}>SAMATHA</div>
           <div style={{position:"relative",display:"inline-block"}}>
             <h1 style={{fontFamily:f,fontWeight:400,fontSize:28,color:"#d4b896",letterSpacing:4}}>Meditation</h1>
-            <span style={{position:"absolute",right:-32,bottom:4,fontSize:10,color:"#3a3020",letterSpacing:1}}>v5.3</span>
+            <span style={{position:"absolute",right:-32,bottom:4,fontSize:10,color:"#3a3020",letterSpacing:1}}>v5.4</span>
           </div>
         </div>
         <div style={{display:"flex",justifyContent:"center",gap:8,marginTop:32,borderBottom:"1px solid #1e1a16",paddingBottom:2}}>
