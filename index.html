@@ -163,7 +163,6 @@ function App() {
   const [confirmingGoal, setConfirmingGoal] = useState(false);
   const [showSplitInfo, setShowSplitInfo] = useState(false);
   const [showBackupInfo, setShowBackupInfo] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
   const [calendarMonth, setCalendarMonth] = useState(()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;});
   const [selectedDate, setSelectedDate] = useState(null);
   const [nightMode, setNightMode] = useState(()=>{try{const n=localStorage.getItem("samatha_night_mode");return n?JSON.parse(n).enabled:false;}catch{return false;}});
@@ -850,14 +849,7 @@ function App() {
                     <div style={{color:"#5a4a3a",fontSize:13}}>{s.date}</div>
                     <div style={{display:"flex",alignItems:"center",gap:12}}>
                       <div style={{color:"#a89070",fontSize:18}}>{Math.round(s.duration/60)}<span style={{fontSize:12,color:"#5a4a3a"}}>分</span></div>
-                      {deletingId===s.id?(
-                        <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                          <button onClick={()=>{handleDeleteSession(s.id);setDeletingId(null);}} style={{background:"none",border:"1px solid #7a3020",color:"#c06040",borderRadius:4,cursor:"pointer",fontSize:11,padding:"2px 8px"}}>削除</button>
-                          <button onClick={()=>setDeletingId(null)} style={{background:"none",border:"1px solid #2a2520",color:"#5a4a3a",borderRadius:4,cursor:"pointer",fontSize:11,padding:"2px 8px"}}>戻る</button>
-                        </div>
-                      ):(
-                        <button onClick={()=>setDeletingId(s.id)} style={{background:"none",border:"none",color:"#3a2520",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px"}}>×</button>
-                      )}
+                      <button onClick={()=>{if(window.confirm("このセッションを削除しますか？"))handleDeleteSession(s.id);}} style={{background:"none",border:"none",color:"#3a2520",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px"}}>×</button>
                     </div>
                   </div>
                 ))}
