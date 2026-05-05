@@ -163,6 +163,7 @@ function App() {
   const [confirmingGoal, setConfirmingGoal] = useState(false);
   const [showSplitInfo, setShowSplitInfo] = useState(false);
   const [showBackupInfo, setShowBackupInfo] = useState(false);
+  const [showTimerInfo, setShowTimerInfo] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;});
   const [selectedDate, setSelectedDate] = useState(null);
   const [nightMode, setNightMode] = useState(()=>{try{const n=localStorage.getItem("samatha_night_mode");return n?JSON.parse(n).enabled:false;}catch{return false;}});
